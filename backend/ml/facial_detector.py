@@ -10,23 +10,10 @@ class FacialDistressDetector:
     def __init__(self):
         # Resolve the absolute path to the face_landmarker.task model file
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        model_path = os.path.join(current_dir, 'face_landmarker.task')
+        self.model_path = os.path.join(current_dir, 'face_landmarker.task')
         
-        if not os.path.exists(model_path):
-            raise FileNotFoundError(
-                f"MediaPipe FaceLandmarker model file not found at: {model_path}. "
-                "Please run curl or script to download the model asset."
-            )
-            
-        # Initialize MediaPipe Face Landmarker
-        base_options = python.BaseOptions(model_asset_path=model_path)
-        options = vision.FaceLandmarkerOptions(
-            base_options=base_options,
-            output_face_blendshapes=False,
-            output_facial_transformation_matrixes=False,
-            num_faces=1
-        )
-        self.detector = vision.FaceLandmarker.create_from_options(options)
+        # Detector initialized lazily on the first frame to prevent import crashes
+        self.detector = None
         
         # State history for sequential features (rolling 5.0 second window)
         self.nose_history = []  # List of tuples: (normalized_nose_coords_np, timestamp)
@@ -34,8 +21,49 @@ class FacialDistressDetector:
         self.in_blink = False
         self.blink_start_time = 0.0
         
-        # Last calculated score to return if face detection fails temporarily
+        # Last calculated score and details to return if face detection fails temporarily
         self.last_score = 0.0
+        self.last_sub_scores = {}
+
+    def _ensure_model_exists(self):
+        """Ensures the MediaPipe FaceLandmarker model file is present, downloading it if necessary."""
+        if not os.path.exists(self.model_path):
+            print(f"MediaPipe FaceLandmarker model file not found at {self.model_path}.")
+            print("Attempting to download it automatically from Google APIs...")
+            import urllib.request
+            url = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+            temp_path = self.model_path + ".tmp"
+            try:
+                os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
+                urllib.request.urlretrieve(url, temp_path)
+                os.rename(temp_path, self.model_path)
+                print(f"Successfully downloaded model file to {self.model_path}")
+            except Exception as e:
+                if os.path.exists(temp_path):
+                    try:
+                        os.remove(temp_path)
+                    except:
+                        pass
+                raise FileNotFoundError(
+                    f"Could not download model from {url}. Error: {e}. "
+                    f"Please download it manually and place it at {self.model_path}."
+                )
+
+    def _init_detector(self):
+        """Initializes the MediaPipe FaceLandmarker detector if not already done."""
+        if self.detector is not None:
+            return
+            
+        self._ensure_model_exists()
+        
+        base_options = python.BaseOptions(model_asset_path=self.model_path)
+        options = vision.FaceLandmarkerOptions(
+            base_options=base_options,
+            output_face_blendshapes=False,
+            output_facial_transformation_matrixes=False,
+            num_faces=1
+        )
+        self.detector = vision.FaceLandmarker.create_from_options(options)
 
         # =====================================================================
         # TUNABLE RULE-BASED THRESHOLDS & PARAMETERS
@@ -121,10 +149,18 @@ class FacialDistressDetector:
         if timestamp is None:
             timestamp = time.time()
             
-        height, width, _ = image.shape
+        self._init_detector()
+            
+        height, width = image.shape[:2]
         
-        # Convert BGR to RGB
-        rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        # Convert BGR/Grayscale/BGRA to RGB
+        if len(image.shape) == 2:  # Grayscale
+            rgb_image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+        elif image.shape[2] == 4:  # BGRA
+            rgb_image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGB)
+        else:  # BGR (standard 3 channels)
+            rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            
         # Create MediaPipe Image object
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_image)
         
