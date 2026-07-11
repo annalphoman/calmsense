@@ -14,7 +14,7 @@ except ModuleNotFoundError:
         # pyrefly: ignore [missing-import]
         from ml.facial_detector import get_facial_distress_score, get_detector_details, reset_detector
 
-def run_detection_on_image(image_path: str, timestamp: float = None):
+def run_detection_on_image(image_path: str, timestamp: float | None = None):
     """Loads an image, processes it, and prints the detailed scores."""
     if not os.path.exists(image_path):
         print(f"Error: File not found at {image_path}")

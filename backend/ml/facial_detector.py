@@ -1,6 +1,9 @@
 import os
+# pyrefly: ignore [missing-import]
 import cv2
+# pyrefly: ignore [missing-import]
 import numpy as np
+# pyrefly: ignore [missing-import]
 import mediapipe as mp
 import time
 from mediapipe.tasks import python
@@ -147,35 +150,42 @@ class FacialDistressDetector:
         c2 = self._get_coords(lm2, width, height)
         return float(np.linalg.norm(c1 - c2))
 
-    def process_frame(self, image: np.ndarray, timestamp: float = None) -> float:
+    def process_frame(self, image: np.ndarray | str, timestamp: float | None = None) -> float:
         """
         Processes a single BGR image frame and returns a distress score [0.0, 1.0].
         
         Args:
-            image: OpenCV BGR image.
+            image: OpenCV BGR image or path to image.
             timestamp: Optional mock timestamp (in seconds) for frame sequence playback. 
                        If None, time.time() is used.
         """
         if isinstance(image, str):
-            image = cv2.imread(image)
+            loaded = cv2.imread(image)
+            if loaded is None:
+                return self.last_score
+            img_array = loaded
+        else:
+            img_array = image
             
-        if image is None or not isinstance(image, np.ndarray) or len(image.shape) < 2:
+        if not isinstance(img_array, np.ndarray) or len(img_array.shape) < 2:
             return self.last_score
             
         if timestamp is None:
             timestamp = time.time()
             
         self._init_detector()
+        if self.detector is None:
+            return self.last_score
             
-        height, width = image.shape[:2]
+        height, width = img_array.shape[:2]
         
         # Convert BGR/Grayscale/BGRA to RGB
-        if len(image.shape) == 2:  # Grayscale
-            rgb_image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
-        elif image.shape[2] == 4:  # BGRA
-            rgb_image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGB)
+        if len(img_array.shape) == 2:  # Grayscale
+            rgb_image = cv2.cvtColor(img_array, cv2.COLOR_GRAY2RGB)
+        elif img_array.shape[2] == 4:  # BGRA
+            rgb_image = cv2.cvtColor(img_array, cv2.COLOR_BGRA2RGB)
         else:  # BGR (standard 3 channels)
-            rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            rgb_image = cv2.cvtColor(img_array, cv2.COLOR_BGR2RGB)
             
         # Create MediaPipe Image object
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_image)
@@ -351,7 +361,7 @@ class FacialDistressDetector:
         )
         
         # Ensure final score is clamped between 0.0 and 1.0
-        total_score = max(0.0, min(1.0, float(total_score)))
+        total_score = max(0.0, min(1.0, total_score))
         
         # Keep track of sub-scores for logging/debugging
         self.last_sub_scores = {
@@ -374,13 +384,13 @@ class FacialDistressDetector:
 # Global stateful detector instance for simple function-based usage
 _detector = FacialDistressDetector()
 
-def get_facial_distress_score(image: np.ndarray, timestamp: float = None) -> float:
+def get_facial_distress_score(image: np.ndarray | str, timestamp: float | None = None) -> float:
     """
     Analyzes a single frame image using MediaPipe FaceMesh and returns a distress score [0.0, 1.0].
     Maintains internal history for sequence-based features (blink rate, head movement).
     
     Args:
-        image: OpenCV BGR image.
+        image: OpenCV BGR image or path to image.
         timestamp: Optional mock timestamp (in seconds) for frame sequence playback.
     """
     return _detector.process_frame(image, timestamp)
