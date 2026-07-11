@@ -129,3 +129,6 @@ Thumbs.db
 
 # MediaPipe model tasks
 *.task
+
+# IDE configuration
+.vscode/
