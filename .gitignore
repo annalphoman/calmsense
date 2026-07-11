@@ -126,3 +126,6 @@ Thumbs.db
 # Pytest cache
 .pytest_cache/
 .mypy_cache/
+
+# MediaPipe model tasks
+*.task
