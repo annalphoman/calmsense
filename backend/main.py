@@ -4,12 +4,14 @@ import time
 import random
 import logging
 from typing import Dict, Optional, List, Union
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, status, Depends
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, status, Depends, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from backend.generation.content_mapper import generate_calming_content
+from ml.facial_detector import get_facial_distress_score
+from ml.vocal_detector import get_vocal_distress_score
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -244,6 +246,75 @@ async def distress_score(payload: DistressScoreInput):
         distress_level=distress_level,
         combined_score=round(combined_score, 4)
     )
+
+@app.post("/analyze-live")
+async def analyze_live(
+    image: Optional[UploadFile] = File(None),
+    image_b64: Optional[str] = Form(None),
+    audio: UploadFile = File(...),
+    session_code: Optional[str] = Form(None)
+):
+    import base64
+    import cv2
+    import numpy as np
+
+    cv_img = None
+    if image is not None:
+        try:
+            image_bytes = await image.read()
+            if image_bytes:
+                nparr = np.frombuffer(image_bytes, np.uint8)
+                cv_img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        except Exception as e:
+            logger.error(f"Error decoding uploaded image: {e}")
+            raise HTTPException(status_code=400, detail=f"Invalid image file: {str(e)}")
+    
+    if cv_img is None and image_b64 is not None:
+        try:
+            if "," in image_b64:
+                image_b64 = image_b64.split(",")[1]
+            image_bytes = base64.b64decode(image_b64)
+            nparr = np.frombuffer(image_bytes, np.uint8)
+            cv_img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        except Exception as e:
+            logger.error(f"Error decoding base64 image: {e}")
+            raise HTTPException(status_code=400, detail=f"Invalid base64 image: {str(e)}")
+
+    if cv_img is None:
+        raise HTTPException(status_code=400, detail="No valid image provided (upload or base64)")
+
+    # Process audio
+    try:
+        audio_bytes = await audio.read()
+    except Exception as e:
+        logger.error(f"Error reading audio file: {e}")
+        raise HTTPException(status_code=400, detail=f"Error reading audio file: {str(e)}")
+
+    # Call ML models
+    try:
+        facial_score = get_facial_distress_score(cv_img)
+    except Exception as e:
+        logger.error(f"Error calculating facial distress score: {e}")
+        facial_score = 0.0
+
+    try:
+        vocal_score = get_vocal_distress_score(audio_bytes)
+    except Exception as e:
+        logger.error(f"Error calculating vocal distress score: {e}")
+        vocal_score = 0.0
+
+    # Fusion logic
+    combined_score, distress_level = compute_distress_level(facial_score, vocal_score)
+
+    if session_code:
+        await update_and_relay_distress(session_code, distress_level)
+
+    return {
+        "facial_score": round(facial_score, 4),
+        "vocal_score": round(vocal_score, 4),
+        "combined_score": round(combined_score, 4),
+        "distress_level": distress_level
+    }
 
 @app.post("/generate-calm", response_model=GenerateCalmResponse)
 async def generate_calm(payload: GenerateCalmInput):

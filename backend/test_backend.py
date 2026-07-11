@@ -213,3 +213,47 @@ def test_websockets_relay_and_alerting():
             update_msg = companion_ws.receive_json()
             assert update_msg["distress_level"] == "calm"
             assert update_msg["alert"] is False
+
+def test_analyze_live():
+    # Paths to the real samples
+    workspace_root = os.path.abspath(os.path.dirname(os.path.dirname(__abspath__ := os.path.abspath(__file__))))
+    image_path = os.path.join(workspace_root, "assets", "face.png")
+    audio_path = os.path.join(workspace_root, "assets", "audio", "calm_voice.wav")
+    
+    assert os.path.exists(image_path), f"Test image not found at {image_path}"
+    assert os.path.exists(audio_path), f"Test audio not found at {audio_path}"
+    
+    # 1. Test image file upload and audio file upload
+    with open(image_path, "rb") as img_f, open(audio_path, "rb") as audio_f:
+        files = {
+            "image": ("face.png", img_f, "image/png"),
+            "audio": ("calm_voice.wav", audio_f, "audio/wav")
+        }
+        response = client.post("/analyze-live", files=files)
+        
+    assert response.status_code == 200
+    res_data = response.json()
+    assert "distress_level" in res_data
+    assert "combined_score" in res_data
+    assert "facial_score" in res_data
+    assert "vocal_score" in res_data
+    assert res_data["distress_level"] in ["calm", "rising", "high"]
+    
+    # 2. Test base64 image and audio file upload
+    import base64
+    with open(image_path, "rb") as img_f:
+        img_b64_str = base64.b64encode(img_f.read()).decode("utf-8")
+        
+    with open(audio_path, "rb") as audio_f:
+        files = {
+            "audio": ("calm_voice.wav", audio_f, "audio/wav")
+        }
+        data = {
+            "image_b64": img_b64_str
+        }
+        response = client.post("/analyze-live", files=files, data=data)
+        
+    assert response.status_code == 200
+    res_data = response.json()
+    assert "distress_level" in res_data
+    assert res_data["distress_level"] in ["calm", "rising", "high"]
