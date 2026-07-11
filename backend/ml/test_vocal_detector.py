@@ -75,10 +75,10 @@ def main():
         stressed_bytes = f.read()
         
     print("-" * 50)
-    calm_score = get_vocal_distress_score(calm_bytes)
+    calm_score = get_vocal_distress_score(calm_bytes, debug=True)
     print(f"Calm Voice Score: {calm_score:.4f} (Expected: Low)")
     
-    stressed_score = get_vocal_distress_score(stressed_bytes)
+    stressed_score = get_vocal_distress_score(stressed_bytes, debug=True)
     print(f"Stressed Voice Score: {stressed_score:.4f} (Expected: High)")
     print("-" * 50)
     
