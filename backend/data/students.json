@@ -1,0 +1,14 @@
+[
+  {
+    "username": "student_mode",
+    "pin": "1234"
+  },
+  {
+    "username": "teacher_mode",
+    "pin": "5678"
+  },
+  {
+    "username": "calmsense_user",
+    "pin": "0000"
+  }
+]
