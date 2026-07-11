@@ -25,46 +25,6 @@ class FacialDistressDetector:
         self.last_score = 0.0
         self.last_sub_scores = {}
 
-    def _ensure_model_exists(self):
-        """Ensures the MediaPipe FaceLandmarker model file is present, downloading it if necessary."""
-        if not os.path.exists(self.model_path):
-            print(f"MediaPipe FaceLandmarker model file not found at {self.model_path}.")
-            print("Attempting to download it automatically from Google APIs...")
-            import urllib.request
-            url = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
-            temp_path = self.model_path + ".tmp"
-            try:
-                os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
-                urllib.request.urlretrieve(url, temp_path)
-                os.rename(temp_path, self.model_path)
-                print(f"Successfully downloaded model file to {self.model_path}")
-            except Exception as e:
-                if os.path.exists(temp_path):
-                    try:
-                        os.remove(temp_path)
-                    except:
-                        pass
-                raise FileNotFoundError(
-                    f"Could not download model from {url}. Error: {e}. "
-                    f"Please download it manually and place it at {self.model_path}."
-                )
-
-    def _init_detector(self):
-        """Initializes the MediaPipe FaceLandmarker detector if not already done."""
-        if self.detector is not None:
-            return
-            
-        self._ensure_model_exists()
-        
-        base_options = python.BaseOptions(model_asset_path=self.model_path)
-        options = vision.FaceLandmarkerOptions(
-            base_options=base_options,
-            output_face_blendshapes=False,
-            output_facial_transformation_matrixes=False,
-            num_faces=1
-        )
-        self.detector = vision.FaceLandmarker.create_from_options(options)
-
         # =====================================================================
         # TUNABLE RULE-BASED THRESHOLDS & PARAMETERS
         # =====================================================================
@@ -119,6 +79,46 @@ class FacialDistressDetector:
             'restlessness': 0.20
         }
 
+    def _ensure_model_exists(self):
+        """Ensures the MediaPipe FaceLandmarker model file is present, downloading it if necessary."""
+        if not os.path.exists(self.model_path):
+            print(f"MediaPipe FaceLandmarker model file not found at {self.model_path}.")
+            print("Attempting to download it automatically from Google APIs...")
+            import urllib.request
+            url = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+            temp_path = self.model_path + ".tmp"
+            try:
+                os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
+                urllib.request.urlretrieve(url, temp_path)
+                os.rename(temp_path, self.model_path)
+                print(f"Successfully downloaded model file to {self.model_path}")
+            except Exception as e:
+                if os.path.exists(temp_path):
+                    try:
+                        os.remove(temp_path)
+                    except:
+                        pass
+                raise FileNotFoundError(
+                    f"Could not download model from {url}. Error: {e}. "
+                    f"Please download it manually and place it at {self.model_path}."
+                )
+
+    def _init_detector(self):
+        """Initializes the MediaPipe FaceLandmarker detector if not already done."""
+        if self.detector is not None:
+            return
+            
+        self._ensure_model_exists()
+        
+        base_options = python.BaseOptions(model_asset_path=self.model_path)
+        options = vision.FaceLandmarkerOptions(
+            base_options=base_options,
+            output_face_blendshapes=False,
+            output_facial_transformation_matrixes=False,
+            num_faces=1
+        )
+        self.detector = vision.FaceLandmarker.create_from_options(options)
+
     def reset(self):
         """Resets the history tracking buffers."""
         self.nose_history.clear()
@@ -146,6 +146,9 @@ class FacialDistressDetector:
             timestamp: Optional mock timestamp (in seconds) for frame sequence playback. 
                        If None, time.time() is used.
         """
+        if image is None or not isinstance(image, np.ndarray) or len(image.shape) < 2:
+            return self.last_score
+            
         if timestamp is None:
             timestamp = time.time()
             
