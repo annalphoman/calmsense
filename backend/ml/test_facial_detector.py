@@ -2,8 +2,13 @@ import os
 import sys
 import time
 import cv2
-import numpy as np
-from facial_detector import get_facial_distress_score, get_detector_details, reset_detector
+try:
+    from facial_detector import get_facial_distress_score, get_detector_details, reset_detector
+except ModuleNotFoundError:
+    try:
+        from backend.ml.facial_detector import get_facial_distress_score, get_detector_details, reset_detector
+    except ModuleNotFoundError:
+        from ml.facial_detector import get_facial_distress_score, get_detector_details, reset_detector
 
 def run_detection_on_image(image_path: str, timestamp: float = None):
     """Loads an image, processes it, and prints the detailed scores."""

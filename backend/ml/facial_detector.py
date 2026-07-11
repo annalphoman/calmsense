@@ -8,9 +8,13 @@ from mediapipe.tasks.python import vision
 
 class FacialDistressDetector:
     def __init__(self):
-        # Resolve the absolute path to the face_landmarker.task model file
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        self.model_path = os.path.join(current_dir, 'face_landmarker.task')
+        # Resolve the absolute path to the face_landmarker.task model file, allowing override via env var
+        env_path = os.environ.get("CALMSENSE_MODEL_PATH")
+        if env_path:
+            self.model_path = os.path.abspath(env_path)
+        else:
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            self.model_path = os.path.join(current_dir, 'face_landmarker.task')
         
         # Detector initialized lazily on the first frame to prevent import crashes
         self.detector = None
@@ -98,10 +102,16 @@ class FacialDistressDetector:
                         os.remove(temp_path)
                     except:
                         pass
+                err_msg = str(e)
+                if "Permission" in err_msg or "Read-only" in err_msg:
+                    raise PermissionError(
+                        f"Could not write model file to {self.model_path} due to permission error: {e}. "
+                        f"Please set the CALMSENSE_MODEL_PATH environment variable to a writable path."
+                    ) from e
                 raise FileNotFoundError(
                     f"Could not download model from {url}. Error: {e}. "
                     f"Please download it manually and place it at {self.model_path}."
-                )
+                ) from e
 
     def _init_detector(self):
         """Initializes the MediaPipe FaceLandmarker detector if not already done."""
@@ -146,6 +156,9 @@ class FacialDistressDetector:
             timestamp: Optional mock timestamp (in seconds) for frame sequence playback. 
                        If None, time.time() is used.
         """
+        if isinstance(image, str):
+            image = cv2.imread(image)
+            
         if image is None or not isinstance(image, np.ndarray) or len(image.shape) < 2:
             return self.last_score
             
