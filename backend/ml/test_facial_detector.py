@@ -1,13 +1,17 @@
 import os
 import sys
 import time
+# pyrefly: ignore [missing-import]
 import cv2
 try:
+    # pyrefly: ignore [missing-import]
     from facial_detector import get_facial_distress_score, get_detector_details, reset_detector
 except ModuleNotFoundError:
     try:
+        # pyrefly: ignore [missing-import]
         from backend.ml.facial_detector import get_facial_distress_score, get_detector_details, reset_detector
     except ModuleNotFoundError:
+        # pyrefly: ignore [missing-import]
         from ml.facial_detector import get_facial_distress_score, get_detector_details, reset_detector
 
 def run_detection_on_image(image_path: str, timestamp: float = None):
