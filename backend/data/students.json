@@ -10,5 +10,12 @@
   {
     "username": "calmsense_user",
     "pin": "0000"
+  },
+  {
+    "name": "jerry",
+    "username": "jerry",
+    "pin": "3456",
+    "favorite_color": "Sage",
+    "role": "client"
   }
 ]
