@@ -21,6 +21,7 @@ export default function PatientPage() {
   const [monitoringStarted, setMonitoringStarted] = useState(false);
   const [hasPermissionError, setHasPermissionError] = useState(false);
   const [distressTriggerCount, setDistressTriggerCount] = useState(0);
+  const [songUrl, setSongUrl] = useState("");
 
   // References
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -348,6 +349,43 @@ export default function PatientPage() {
   }, [isDistressed]);
 
   useEffect(() => {
+    if (isDistressed && contentType === "song") {
+      const fetchSong = async () => {
+        try {
+          const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+          const response = await fetch(`${backendUrl}/generate-calm`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              distress_level: "high",
+              content_type: "rhythmic_song",
+              preferences: {
+                colors: [],
+                sounds: [],
+              },
+            }),
+          });
+          if (response.ok) {
+            const data = await response.json();
+            const fullUrl = data.content_url.startsWith("http")
+              ? data.content_url
+              : `${backendUrl}${data.content_url}`;
+            console.log("Dynamically loaded rhythmic song URL:", fullUrl);
+            setSongUrl(fullUrl);
+          }
+        } catch (e) {
+          console.warn("Failed to fetch dynamic song, falling back to local static path:", e);
+          const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+          setSongUrl(`${backendUrl}/static/audio/rhythmic_songs/song1.mp3`);
+        }
+      };
+      fetchSong();
+    }
+  }, [isDistressed, contentType, distressTriggerCount]);
+
+  useEffect(() => {
     // Handling Tone.js ambient soundscape
     if (isDistressed && contentType === "ambient" && !isMuted) {
       // Start Tone.js
@@ -519,7 +557,7 @@ export default function PatientPage() {
       {/* Hidden audio element for rhythmic song */}
       <audio
         ref={audioRef}
-        src="https://assets.mixkit.co/music/preview/mixkit-dreaming-big-31.mp3"
+        src={songUrl}
         loop
         className="hidden"
       />

@@ -237,7 +237,7 @@ export default function CompanionPage() {
           session_code: sessionCode,
           child_name: intake.childName,
           timestamp,
-          feedback: noteText,
+          note: noteText,
         }),
       });
 
