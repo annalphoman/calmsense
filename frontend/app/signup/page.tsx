@@ -14,7 +14,6 @@ export default function SignupPage() {
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [favoriteColor, setFavoriteColor] = useState("Sage");
-  const [role, setRole] = useState<"client" | "therapist">("client");
 
   // Status state
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +57,7 @@ export default function SignupPage() {
           pin,
           confirm_pin: confirmPin,
           favorite_color: favoriteColor,
-          role,
+          role: "client",
         }),
       });
 
@@ -110,37 +109,6 @@ export default function SignupPage() {
               <span>{success}</span>
             </div>
           )}
-
-          {/* Role Toggle Selector */}
-          <div>
-            <label className="block text-sm font-medium text-slate-text/80 mb-2">
-              Select Your Role
-            </label>
-            <div className="grid grid-cols-2 gap-3 p-1 bg-slate-50 border border-slate-text/10 rounded-2xl">
-              <button
-                type="button"
-                onClick={() => setRole("client")}
-                className={`py-2 px-3 text-sm font-medium rounded-xl transition-all duration-200 ${
-                  role === "client"
-                    ? "bg-white text-sage-dark shadow-sm border border-sage-soft/30"
-                    : "text-slate-text/60 hover:text-slate-text"
-                }`}
-              >
-                Sign up as Client
-              </button>
-              <button
-                type="button"
-                onClick={() => setRole("therapist")}
-                className={`py-2 px-3 text-sm font-medium rounded-xl transition-all duration-200 ${
-                  role === "therapist"
-                    ? "bg-white text-sky-dark shadow-sm border border-sage-soft/30"
-                    : "text-slate-text/60 hover:text-slate-text"
-                }`}
-              >
-                Sign up as Therapist
-              </button>
-            </div>
-          </div>
 
           <div className="space-y-3">
             {/* Full Name */}
