@@ -49,7 +49,12 @@ export default function LoginPage() {
         });
 
         if (response.ok) {
-          success = true;
+          const data = await response.json().catch(() => ({}));
+          if (data.success) {
+            success = true;
+          } else {
+            errorMessage = data.message || errorMessage;
+          }
         } else {
           const data = await response.json().catch(() => ({}));
           errorMessage = data.detail || data.message || errorMessage;
@@ -71,7 +76,7 @@ export default function LoginPage() {
           "calmsense_user",
           JSON.stringify({ username, loggedInAt: new Date().toISOString() })
         );
-        router.push("/");
+        router.push("/patient");
       } else {
         setError(errorMessage);
       }
