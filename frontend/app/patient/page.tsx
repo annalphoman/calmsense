@@ -234,9 +234,13 @@ export default function PatientPage() {
           video: { facingMode: "user" },
           audio: true,
         });
+        console.log("Webcam & Audio stream received:", stream);
         streamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+          videoRef.current.play().catch((playErr) => {
+            console.warn("Failed to play primary audio/video stream:", playErr);
+          });
           setWebcamActive(true);
         }
       } catch (err) {
@@ -246,9 +250,13 @@ export default function PatientPage() {
             video: { facingMode: "user" },
             audio: false,
           });
+          console.log("Video-only stream received:", videoOnlyStream);
           streamRef.current = videoOnlyStream;
           if (videoRef.current) {
             videoRef.current.srcObject = videoOnlyStream;
+            videoRef.current.play().catch((playErr) => {
+              console.warn("Failed to play video-only stream:", playErr);
+            });
             setWebcamActive(true);
           }
         } catch (videoErr) {
@@ -483,15 +491,14 @@ export default function PatientPage() {
         {/* Webcam Card */}
         <div className="flex flex-col items-center bg-white p-6 rounded-3xl border border-sage-soft/30 shadow-sm space-y-4">
           <div className="relative w-full aspect-video rounded-2xl bg-slate-100 overflow-hidden border border-slate-200">
-            {webcamActive ? (
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover scale-x-[-1]"
-              />
-            ) : (
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className={`w-full h-full object-cover scale-x-[-1] ${webcamActive ? "block" : "hidden"}`}
+            />
+            {!webcamActive && (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-text/40">
                 <Camera className="h-12 w-12 mb-2 animate-soft-pulse" />
                 <span className="text-sm">Webcam preview offline or permission denied</span>
