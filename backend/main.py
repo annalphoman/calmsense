@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from backend.generation.content_mapper import generate_calming_content
+from generation.content_mapper import generate_calming_content
 from ml.facial_detector import get_facial_distress_score
 from ml.vocal_detector import get_vocal_distress_score
 
