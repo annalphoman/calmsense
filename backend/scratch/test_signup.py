@@ -1,11 +1,14 @@
 import os
 import sys
 
-# Ensure backend directory is in the path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# Ensure project root and backend directory are in the path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+backend_dir = os.path.join(project_root, "backend")
+sys.path.insert(0, project_root)
+sys.path.insert(0, backend_dir)
 
 from fastapi.testclient import TestClient
-from main import app, STUDENTS_FILE, THERAPISTS_FILE, load_students, load_therapists, save_students, save_therapists
+from backend.main import app, STUDENTS_FILE, THERAPISTS_FILE, load_students, load_therapists, save_students, save_therapists
 
 client = TestClient(app)
 
