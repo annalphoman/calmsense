@@ -59,7 +59,7 @@ export default function Home() {
 
         {/* Large Buttons Container */}
         <div className="grid gap-6 md:grid-cols-2 mt-8">
-          {/* Patient Mode Card */}
+          {/* Client Mode Card */}
           <button
             onClick={() => router.push("/patient")}
             className="group flex flex-col items-center text-center p-8 rounded-3xl bg-white border border-sage-soft/30 hover:border-sage-dark/30 hover:shadow-md hover:scale-[1.02] active:scale-[0.99] transition-all duration-300 cursor-pointer"
@@ -68,7 +68,7 @@ export default function Home() {
               <Heart className="h-8 w-8" />
             </div>
             <h2 className="mt-6 text-2xl font-semibold text-slate-text">
-              Patient Mode
+              Client Mode
             </h2>
             <p className="mt-2 text-sm text-slate-text/70 leading-relaxed">
               Open your monitoring view, display your pairing code, and access calming interventions.

@@ -138,8 +138,21 @@ export default function CompanionPage() {
         try {
           const data = JSON.parse(event.data);
           
-          if (data.distressLevel !== undefined) {
-            const val = Number(data.distressLevel);
+          const rawLevel = data.distressLevel ?? data.distress_level;
+          if (rawLevel !== undefined) {
+            let val = 25;
+            if (typeof rawLevel === "number") {
+              val = rawLevel;
+            } else if (rawLevel === "calm") {
+              val = 25;
+            } else if (rawLevel === "rising") {
+              val = 55;
+            } else if (rawLevel === "high") {
+              val = 85;
+            } else {
+              const parsed = Number(rawLevel);
+              if (!isNaN(parsed)) val = parsed;
+            }
             setCurrentDistress(val);
             localStorage.setItem("calmsense_distress", val.toString());
           }
@@ -452,14 +465,14 @@ export default function CompanionPage() {
                 </div>
               </div>
 
-              {/* Developer Demo Controller (Simulate Distress level to sync with patient tab) */}
+              {/* Developer Demo Controller (Simulate Distress level to sync with client tab) */}
               {isDemoMode && (
                 <div className="bg-white p-6 rounded-3xl border border-dashed border-slate-300 space-y-3">
                   <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-text/70">
                     <Settings className="h-4 w-4" />
                     <span>Demo Calibration Slider</span>
                   </div>
-                  <p className="text-xs text-slate-text/50">Adjust distress level to synchronize with Patient Mode tab.</p>
+                  <p className="text-xs text-slate-text/50">Adjust distress level to synchronize with Client Mode tab.</p>
                   <div className="flex items-center gap-4">
                     <span>Calm</span>
                     <input 

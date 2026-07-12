@@ -24,6 +24,7 @@ export default function PatientPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const speechIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const hasSpokenRef = useRef(false);
+  const streamRef = useRef<MediaStream | null>(null);
 
   // 1. Generate static session code & read username on mount
   useEffect(() => {
@@ -96,16 +97,29 @@ export default function PatientPage() {
 
         ws.onopen = () => {
           setSocketConnected(true);
-          setIsDemoMode(false);
           console.log("WebSocket connected to patient channel");
         };
 
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-            if (data.distressLevel !== undefined) {
-              setDistressLevel(Number(data.distressLevel));
-              localStorage.setItem("calmsense_distress", data.distressLevel.toString());
+            const valStr = data.distressLevel ?? data.distress_level;
+            if (valStr !== undefined) {
+              let val = 25;
+              if (typeof valStr === "number") {
+                val = valStr;
+              } else if (valStr === "calm") {
+                val = 25;
+              } else if (valStr === "rising") {
+                val = 55;
+              } else if (valStr === "high") {
+                val = 85;
+              } else {
+                const parsed = Number(valStr);
+                if (!isNaN(parsed)) val = parsed;
+              }
+              setDistressLevel(val);
+              localStorage.setItem("calmsense_distress", val.toString());
             }
             if (data.content_type !== undefined) {
               setContentType(data.content_type);
@@ -118,8 +132,7 @@ export default function PatientPage() {
 
         ws.onclose = () => {
           setSocketConnected(false);
-          setIsDemoMode(true);
-          console.log("WebSocket disconnected, utilizing local simulation");
+          console.log("WebSocket disconnected from patient channel");
           // Reconnect attempt after 5 seconds
           setTimeout(connectWebSocket, 5000);
         };
@@ -129,7 +142,6 @@ export default function PatientPage() {
         };
       } catch (err) {
         setSocketConnected(false);
-        setIsDemoMode(true);
       }
     };
 
@@ -142,34 +154,173 @@ export default function PatientPage() {
     };
   }, [sessionCode]);
 
-  // 4. Webcam Preview Lifecycle
-  useEffect(() => {
-    let stream: MediaStream | null = null;
+  // Helper to capture a frame from the webcam video element
+  const captureWebcamFrame = (): string | null => {
+    if (!videoRef.current) return null;
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = videoRef.current.videoWidth || 640;
+      canvas.height = videoRef.current.videoHeight || 480;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return null;
+      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL("image/jpeg", 0.8);
+    } catch (e) {
+      console.error("Error capturing webcam frame:", e);
+      return null;
+    }
+  };
 
+  // Helper to send base64 frame and audio blob to the live analysis endpoint
+  const sendAnalyzeLive = async (imageB64: string, audioBlob: Blob) => {
+    try {
+      const formData = new FormData();
+      formData.append("image_b64", imageB64);
+      formData.append("audio", audioBlob, "audio.webm");
+      if (sessionCode) {
+        formData.append("session_code", sessionCode);
+      }
+
+      const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+      const response = await fetch(`${backendUrl}/analyze-live`, {
+        method: "POST",
+        body: formData,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("Live distress analysis result:", data);
+
+      setIsDemoMode(false); // Successfully receiving live scores, hide/disable demo warning/slider
+
+      let val = 25;
+      const rawLevel = data.distress_level;
+      if (rawLevel === "calm") {
+        val = 25;
+      } else if (rawLevel === "rising") {
+        val = 55;
+      } else if (rawLevel === "high") {
+        val = 85;
+      } else if (typeof rawLevel === "number") {
+        val = rawLevel;
+      } else {
+        const parsed = Number(rawLevel);
+        if (!isNaN(parsed)) val = parsed;
+      }
+
+      setDistressLevel(val);
+      localStorage.setItem("calmsense_distress", val.toString());
+    } catch (err) {
+      console.warn("Backend /analyze-live failed, using simulated/offline fallback:", err);
+      setIsDemoMode(true); // Fallback to simulation/offline mode
+    }
+  };
+
+  // 4. Webcam and Audio Stream Lifecycle
+  useEffect(() => {
     const enableWebcam = async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
+        const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: "user" },
-          audio: false,
+          audio: true,
         });
+        streamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           setWebcamActive(true);
         }
       } catch (err) {
-        console.warn("Webcam access denied or unavailable:", err);
-        setWebcamActive(false);
+        console.warn("Webcam & Audio stream setup failed, trying video only:", err);
+        try {
+          const videoOnlyStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "user" },
+            audio: false,
+          });
+          streamRef.current = videoOnlyStream;
+          if (videoRef.current) {
+            videoRef.current.srcObject = videoOnlyStream;
+            setWebcamActive(true);
+          }
+        } catch (videoErr) {
+          console.error("Webcam access denied completely:", videoErr);
+          setWebcamActive(false);
+        }
       }
     };
 
     enableWebcam();
 
     return () => {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
   }, []);
+
+  // 4b. Live Distress Analysis Loop (run every 4 seconds)
+  useEffect(() => {
+    if (!webcamActive) return;
+
+    const interval = setInterval(() => {
+      const stream = streamRef.current;
+      if (!stream) return;
+
+      const audioTracks = stream.getAudioTracks();
+      if (audioTracks.length === 0) {
+        // Fallback: send image frame and mock audio if audio is unavailable
+        const imageB64 = captureWebcamFrame();
+        if (imageB64) {
+          const dummyAudio = new Blob([new Uint8Array(100)], { type: "audio/wav" });
+          sendAnalyzeLive(imageB64, dummyAudio);
+        }
+        return;
+      }
+
+      // Record a 1.5 second clip
+      try {
+        const audioStream = new MediaStream(audioTracks);
+        const mediaRecorder = new MediaRecorder(audioStream);
+        const chunks: Blob[] = [];
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) {
+            chunks.push(e.data);
+          }
+        };
+
+        mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(chunks, { type: "audio/webm" });
+          const imageB64 = captureWebcamFrame();
+          if (imageB64) {
+            await sendAnalyzeLive(imageB64, audioBlob);
+          }
+        };
+
+        mediaRecorder.start();
+        setTimeout(() => {
+          if (mediaRecorder.state !== "inactive") {
+            mediaRecorder.stop();
+          }
+        }, 1500);
+      } catch (e) {
+        console.error("Error during MediaRecorder step:", e);
+      }
+    }, 4000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [webcamActive, sessionCode]);
 
   // 5. Soundscape / Song Audio Intervention Logic
   const isDistressed = distressLevel >= 70;
