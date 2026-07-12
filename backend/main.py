@@ -470,22 +470,17 @@ async def feedback(payload: FeedbackInput):
 
 # --- WebSocket Endpoints ---
 
-@app.websocket("/ws/patient")
-async def websocket_patient(websocket: WebSocket):
+@app.websocket("/ws/patient/{session_code}")
+async def websocket_patient(websocket: WebSocket, session_code: str):
     await websocket.accept()
     
-    # Generate unique 4-digit code
-    code = f"{random.randint(1000, 9999)}"
-    while code in manager.active_sessions:
-        code = f"{random.randint(1000, 9999)}"
-        
-    manager.create_session(code, websocket)
+    manager.create_session(session_code, websocket)
     
     try:
         # Send initial confirmation message with code
         await websocket.send_json({
             "type": "session_created",
-            "session_code": code
+            "session_code": session_code
         })
         
         while True:
@@ -501,15 +496,15 @@ async def websocket_patient(websocket: WebSocket):
                 _, distress_level = compute_distress_level(float(facial), float(vocal))
             
             if distress_level:
-                await update_and_relay_distress(code, distress_level)
+                await update_and_relay_distress(session_code, distress_level)
             else:
-                logger.warning(f"WebSocket patient session {code} sent invalid data schema: {data}")
+                logger.warning(f"WebSocket patient session {session_code} sent invalid data schema: {data}")
                 
     except WebSocketDisconnect:
-        manager.remove_patient(code)
+        manager.remove_patient(session_code)
     except Exception as e:
-        logger.error(f"Error in patient websocket connection for {code}: {e}")
-        manager.remove_patient(code)
+        logger.error(f"Error in patient websocket connection for {session_code}: {e}")
+        manager.remove_patient(session_code)
 
 @app.websocket("/ws/companion/{session_code}")
 async def websocket_companion(websocket: WebSocket, session_code: str):
