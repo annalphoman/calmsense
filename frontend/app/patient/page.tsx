@@ -20,6 +20,7 @@ export default function PatientPage() {
   const [isDemoMode, setIsDemoMode] = useState(true);
   const [monitoringStarted, setMonitoringStarted] = useState(false);
   const [hasPermissionError, setHasPermissionError] = useState(false);
+  const [distressTriggerCount, setDistressTriggerCount] = useState(0);
 
   // References
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -341,6 +342,12 @@ export default function PatientPage() {
   const isDistressed = distressLevel >= 70;
 
   useEffect(() => {
+    if (isDistressed) {
+      setDistressTriggerCount((prev) => prev + 1);
+    }
+  }, [isDistressed]);
+
+  useEffect(() => {
     // Handling Tone.js ambient soundscape
     if (isDistressed && contentType === "ambient" && !isMuted) {
       // Start Tone.js
@@ -381,13 +388,14 @@ export default function PatientPage() {
         }
       };
     }
-  }, [isDistressed, contentType, isMuted]);
+  }, [isDistressed, contentType, isMuted, distressTriggerCount]);
 
   // Handling Audio element for Rhythmic Song
   useEffect(() => {
     if (isDistressed && contentType === "song" && !isMuted) {
       if (audioRef.current) {
         audioRef.current.muted = false;
+        audioRef.current.currentTime = 0;
         audioRef.current.play().catch(err => {
           console.warn("Audio autoplay blocked, requires gesture:", err);
         });
@@ -398,12 +406,12 @@ export default function PatientPage() {
         audioRef.current.currentTime = 0;
       }
     }
-  }, [isDistressed, contentType, isMuted]);
+  }, [isDistressed, contentType, isMuted, distressTriggerCount]);
 
   // 6. Voice Layer (Web Speech API)
   useEffect(() => {
     if (isDistressed) {
-      if (hasSpokenRef.current) return; // Speak only once per distress event
+      hasSpokenRef.current = false; // Reset on every distress event trigger!
 
       const phrases = [
         `Breathe in slowly, ${username}. You are safe.`,
@@ -445,7 +453,7 @@ export default function PatientPage() {
         window.speechSynthesis.cancel();
       }
     }
-  }, [isDistressed, username, isMuted]);
+  }, [isDistressed, username, isMuted, distressTriggerCount]);
 
   // Determine soft status bg color shifts (calm blue to amber, transition managed by Tailwind)
   const statusColorClass = distressLevel < 40 
