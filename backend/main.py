@@ -32,6 +32,7 @@ app.add_middleware(
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 SESSIONS_FILE = os.path.join(DATA_DIR, "sessions.json")
 STUDENTS_FILE = os.path.join(DATA_DIR, "students.json")
+THERAPISTS_FILE = os.path.join(DATA_DIR, "therapists.json")
 AUDIO_DIR = os.path.join(os.path.dirname(__file__), "audio")
 
 # Mount Static Files for rhythmic songs
@@ -140,6 +141,32 @@ def load_students() -> list:
         logger.error(f"Error loading students: {e}")
         return []
 
+def save_students(students: list):
+    try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(STUDENTS_FILE, "w") as f:
+            json.dump(students, f, indent=2)
+    except Exception as e:
+        logger.error(f"Error saving students: {e}")
+
+def load_therapists() -> list:
+    if not os.path.exists(THERAPISTS_FILE):
+        return []
+    try:
+        with open(THERAPISTS_FILE, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading therapists: {e}")
+        return []
+
+def save_therapists(therapists: list):
+    try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(THERAPISTS_FILE, "w") as f:
+            json.dump(therapists, f, indent=2)
+    except Exception as e:
+        logger.error(f"Error saving therapists: {e}")
+
 def compute_distress_level(facial_score: float, vocal_score: float) -> tuple:
     combined_score = (facial_score * 0.6) + (vocal_score * 0.4)
     if combined_score < 0.35:
@@ -218,6 +245,14 @@ class GenerateCalmResponse(BaseModel):
 class LoginInput(BaseModel):
     username: str
     pin: str
+
+class SignupInput(BaseModel):
+    name: Optional[str] = None
+    username: Optional[str] = None
+    pin: Optional[str] = None
+    confirm_pin: Optional[str] = None
+    favorite_color: Optional[str] = None
+    role: Optional[str] = None
 
 class ChildInfoInput(BaseModel):
     session_code: Optional[str] = None
@@ -343,6 +378,47 @@ async def login(payload: LoginInput):
         if student.get("username") == payload.username and student.get("pin") == payload.pin:
             return {"success": True, "message": "Login successful"}
     return {"success": False, "message": "Invalid username or PIN"}
+
+@app.post("/signup")
+async def signup(payload: SignupInput):
+    # Validate missing fields
+    if not payload.name or not payload.username or not payload.pin or not payload.confirm_pin or not payload.favorite_color or not payload.role:
+        return {"success": False, "message": "Missing required fields"}
+        
+    # Validate role
+    if payload.role not in ["client", "therapist"]:
+        return {"success": False, "message": "Invalid role. Must be 'client' or 'therapist'"}
+        
+    # Validate pin match
+    if payload.pin != payload.confirm_pin:
+        return {"success": False, "message": "PINs do not match"}
+        
+    # Validate username doesn't already exist
+    if payload.role == "client":
+        records = load_students()
+    else:
+        records = load_therapists()
+        
+    for r in records:
+        if r.get("username") == payload.username:
+            return {"success": False, "message": "Username already taken"}
+            
+    # Save the new user record
+    new_user = {
+        "name": payload.name,
+        "username": payload.username,
+        "pin": payload.pin,
+        "favorite_color": payload.favorite_color,
+        "role": payload.role
+    }
+    records.append(new_user)
+    
+    if payload.role == "client":
+        save_students(records)
+    else:
+        save_therapists(records)
+        
+    return {"success": True}
 
 @app.post("/child-info")
 async def child_info(payload: ChildInfoInput):
