@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Sparkles, KeyRound, User, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
@@ -164,6 +165,18 @@ export default function LoginPage() {
             </button>
           </div>
         </form>
+
+        <div className="text-center mt-6">
+          <p className="text-sm text-slate-text/70">
+            Don't have an account?{" "}
+            <Link
+              href="/signup"
+              className="font-medium text-sage-dark hover:underline transition-all duration-200"
+            >
+              Sign up
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );
