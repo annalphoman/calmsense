@@ -17,9 +17,6 @@ export default function Home() {
       } catch (e) {
         // Ignore error
       }
-    } else {
-      // Gentle redirect if session is missing, but allow override for convenience
-      router.push("/login");
     }
   }, [router]);
 
@@ -59,16 +56,16 @@ export default function Home() {
 
         {/* Large Buttons Container */}
         <div className="grid gap-6 md:grid-cols-2 mt-8">
-          {/* Client Mode Card */}
+          {/* Patient Mode Card */}
           <button
-            onClick={() => router.push("/patient")}
+            onClick={() => router.push("/login")}
             className="group flex flex-col items-center text-center p-8 rounded-3xl bg-white border border-sage-soft/30 hover:border-sage-dark/30 hover:shadow-md hover:scale-[1.02] active:scale-[0.99] transition-all duration-300 cursor-pointer"
           >
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-sage-soft text-sage-dark group-hover:scale-110 transition-transform duration-300">
               <Heart className="h-8 w-8" />
             </div>
             <h2 className="mt-6 text-2xl font-semibold text-slate-text">
-              Client Mode
+              Patient Mode
             </h2>
             <p className="mt-2 text-sm text-slate-text/70 leading-relaxed">
               Open your monitoring view, display your pairing code, and access calming interventions.
@@ -88,7 +85,7 @@ export default function Home() {
               <ShieldCheck className="h-8 w-8" />
             </div>
             <h2 className="mt-6 text-2xl font-semibold text-slate-text">
-              Therapist / Parent
+              Therapist/Parent Mode
             </h2>
             <p className="mt-2 text-sm text-slate-text/70 leading-relaxed">
               Pair with a student session, customize intake profiles, track distress, and review notes.

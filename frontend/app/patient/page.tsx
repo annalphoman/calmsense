@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Camera, Volume2, VolumeX, Sparkles, RefreshCw, AlertCircle, Heart } from "lucide-react";
 import * as Tone from "tone";
 
@@ -17,6 +18,10 @@ export default function PatientPage() {
   const [webcamActive, setWebcamActive] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
   const [isDemoMode, setIsDemoMode] = useState(true);
+  const [monitoringStarted, setMonitoringStarted] = useState(false);
+  const [hasPermissionError, setHasPermissionError] = useState(false);
+  const [distressTriggerCount, setDistressTriggerCount] = useState(0);
+  const [songUrl, setSongUrl] = useState("");
 
   // References
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -228,15 +233,21 @@ export default function PatientPage() {
 
   // 4. Webcam and Audio Stream Lifecycle
   useEffect(() => {
+    if (!monitoringStarted) return;
+
     const enableWebcam = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: "user" },
           audio: true,
         });
+        console.log("Webcam & Audio stream received:", stream);
         streamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+          videoRef.current.play().catch((playErr) => {
+            console.warn("Failed to play primary audio/video stream:", playErr);
+          });
           setWebcamActive(true);
         }
       } catch (err) {
@@ -246,14 +257,20 @@ export default function PatientPage() {
             video: { facingMode: "user" },
             audio: false,
           });
+          console.log("Video-only stream received:", videoOnlyStream);
           streamRef.current = videoOnlyStream;
           if (videoRef.current) {
             videoRef.current.srcObject = videoOnlyStream;
+            videoRef.current.play().catch((playErr) => {
+              console.warn("Failed to play video-only stream:", playErr);
+            });
             setWebcamActive(true);
           }
         } catch (videoErr) {
           console.error("Webcam access denied completely:", videoErr);
           setWebcamActive(false);
+          setHasPermissionError(true);
+          setMonitoringStarted(false);
         }
       }
     };
@@ -265,7 +282,7 @@ export default function PatientPage() {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
-  }, []);
+  }, [monitoringStarted]);
 
   // 4b. Live Distress Analysis Loop (run every 4 seconds)
   useEffect(() => {
@@ -326,6 +343,49 @@ export default function PatientPage() {
   const isDistressed = distressLevel >= 70;
 
   useEffect(() => {
+    if (isDistressed) {
+      setDistressTriggerCount((prev) => prev + 1);
+    }
+  }, [isDistressed]);
+
+  useEffect(() => {
+    if (isDistressed && contentType === "song") {
+      const fetchSong = async () => {
+        try {
+          const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+          const response = await fetch(`${backendUrl}/generate-calm`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              distress_level: "high",
+              content_type: "rhythmic_song",
+              preferences: {
+                colors: [],
+                sounds: [],
+              },
+            }),
+          });
+          if (response.ok) {
+            const data = await response.json();
+            const fullUrl = data.content_url.startsWith("http")
+              ? data.content_url
+              : `${backendUrl}${data.content_url}`;
+            console.log("Dynamically loaded rhythmic song URL:", fullUrl);
+            setSongUrl(fullUrl);
+          }
+        } catch (e) {
+          console.warn("Failed to fetch dynamic song, falling back to local static path:", e);
+          const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+          setSongUrl(`${backendUrl}/static/audio/rhythmic_songs/song1.mp3`);
+        }
+      };
+      fetchSong();
+    }
+  }, [isDistressed, contentType, distressTriggerCount]);
+
+  useEffect(() => {
     // Handling Tone.js ambient soundscape
     if (isDistressed && contentType === "ambient" && !isMuted) {
       // Start Tone.js
@@ -366,13 +426,14 @@ export default function PatientPage() {
         }
       };
     }
-  }, [isDistressed, contentType, isMuted]);
+  }, [isDistressed, contentType, isMuted, distressTriggerCount]);
 
   // Handling Audio element for Rhythmic Song
   useEffect(() => {
     if (isDistressed && contentType === "song" && !isMuted) {
       if (audioRef.current) {
         audioRef.current.muted = false;
+        audioRef.current.currentTime = 0;
         audioRef.current.play().catch(err => {
           console.warn("Audio autoplay blocked, requires gesture:", err);
         });
@@ -383,12 +444,12 @@ export default function PatientPage() {
         audioRef.current.currentTime = 0;
       }
     }
-  }, [isDistressed, contentType, isMuted]);
+  }, [isDistressed, contentType, isMuted, distressTriggerCount]);
 
   // 6. Voice Layer (Web Speech API)
   useEffect(() => {
     if (isDistressed) {
-      if (hasSpokenRef.current) return; // Speak only once per distress event
+      hasSpokenRef.current = false; // Reset on every distress event trigger!
 
       const phrases = [
         `Breathe in slowly, ${username}. You are safe.`,
@@ -430,7 +491,7 @@ export default function PatientPage() {
         window.speechSynthesis.cancel();
       }
     }
-  }, [isDistressed, username, isMuted]);
+  }, [isDistressed, username, isMuted, distressTriggerCount]);
 
   // Determine soft status bg color shifts (calm blue to amber, transition managed by Tailwind)
   const statusColorClass = distressLevel < 40 
@@ -445,13 +506,58 @@ export default function PatientPage() {
       ? "Pacing / Mild Tension" 
       : "Distress Alert - Calming Active";
 
+  if (!monitoringStarted) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center bg-clay-soft px-6 py-12">
+        <div className="w-full max-w-md space-y-8 text-center bg-white p-8 rounded-3xl border border-sage-soft/30 shadow-sm">
+          <div className="flex flex-col items-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-sage-soft text-sage-dark animate-soft-pulse">
+              <Camera className="h-8 w-8" />
+            </div>
+            <h2 className="mt-6 text-3xl font-semibold tracking-tight text-slate-text">
+              Start Monitoring
+            </h2>
+            <p className="mt-2 text-sm text-slate-text/70">
+              CalmSense needs camera and microphone permissions to detect distress levels locally.
+            </p>
+          </div>
+
+          {hasPermissionError && (
+            <div className="flex items-center gap-2 rounded-xl bg-rose-alert/10 p-4 text-sm text-rose-alert border border-rose-alert/20 animate-fade-in text-left">
+              <AlertCircle className="h-5 w-5 shrink-0" />
+              <span>Camera and microphone access is required for CalmSpace monitoring. Please check your browser permissions and try again.</span>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <button
+              onClick={() => {
+                setHasPermissionError(false);
+                setMonitoringStarted(true);
+              }}
+              className="w-full py-3.5 px-4 rounded-2xl bg-sage-dark text-white font-medium hover:bg-sage-dark/90 active:scale-[0.98] transition-all duration-200"
+            >
+              {hasPermissionError ? "Try Again" : "Grant Access & Start"}
+            </button>
+            <Link
+              href="/"
+              className="block text-sm text-slate-text/50 hover:text-slate-text hover:underline transition-all duration-200"
+            >
+              Cancel and Return
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-clay-soft text-slate-text p-6 transition-colors duration-1000">
       
       {/* Hidden audio element for rhythmic song */}
       <audio
         ref={audioRef}
-        src="https://assets.mixkit.co/music/preview/mixkit-dreaming-big-31.mp3"
+        src={songUrl || undefined}
         loop
         className="hidden"
       />
@@ -483,15 +589,14 @@ export default function PatientPage() {
         {/* Webcam Card */}
         <div className="flex flex-col items-center bg-white p-6 rounded-3xl border border-sage-soft/30 shadow-sm space-y-4">
           <div className="relative w-full aspect-video rounded-2xl bg-slate-100 overflow-hidden border border-slate-200">
-            {webcamActive ? (
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover scale-x-[-1]"
-              />
-            ) : (
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className={`w-full h-full object-cover scale-x-[-1] ${webcamActive ? "block" : "hidden"}`}
+            />
+            {!webcamActive && (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-text/40">
                 <Camera className="h-12 w-12 mb-2 animate-soft-pulse" />
                 <span className="text-sm">Webcam preview offline or permission denied</span>
@@ -680,6 +785,25 @@ export default function PatientPage() {
             )}
           </div>
         )}
+      </div>
+      
+      {/* Dev-only floating distress test trigger */}
+      <div className="fixed bottom-4 right-4 z-40">
+        <button
+          onClick={() => {
+            const nextLevel = distressLevel >= 70 ? 25 : 85;
+            setDistressLevel(nextLevel);
+            localStorage.setItem("calmsense_distress", nextLevel.toString());
+          }}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg border text-xs font-semibold uppercase tracking-wider transition-all duration-300 ${
+            distressLevel >= 70
+              ? "bg-sky-calm hover:bg-sky-calm/80 text-sky-dark border-sky-dark/20"
+              : "bg-rose-alert hover:bg-rose-alert/90 text-white border-rose-alert/20"
+          }`}
+        >
+          <Sparkles className="h-4 w-4" />
+          <span>{distressLevel >= 70 ? "Force Calm" : "Force Distress"}</span>
+        </button>
       </div>
 
     </div>

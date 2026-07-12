@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Sparkles, KeyRound, User, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
@@ -48,7 +49,12 @@ export default function LoginPage() {
         });
 
         if (response.ok) {
-          success = true;
+          const data = await response.json().catch(() => ({}));
+          if (data.success) {
+            success = true;
+          } else {
+            errorMessage = data.message || errorMessage;
+          }
         } else {
           const data = await response.json().catch(() => ({}));
           errorMessage = data.detail || data.message || errorMessage;
@@ -70,7 +76,7 @@ export default function LoginPage() {
           "calmsense_user",
           JSON.stringify({ username, loggedInAt: new Date().toISOString() })
         );
-        router.push("/");
+        router.push("/patient");
       } else {
         setError(errorMessage);
       }
@@ -164,6 +170,18 @@ export default function LoginPage() {
             </button>
           </div>
         </form>
+
+        <div className="text-center mt-6">
+          <p className="text-sm text-slate-text/70">
+            Don't have an account?{" "}
+            <Link
+              href="/signup"
+              className="font-medium text-sage-dark hover:underline transition-all duration-200"
+            >
+              Sign up
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );
