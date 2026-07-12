@@ -557,7 +557,7 @@ export default function PatientPage() {
       {/* Hidden audio element for rhythmic song */}
       <audio
         ref={audioRef}
-        src={songUrl}
+        src={songUrl || null}
         loop
         className="hidden"
       />
