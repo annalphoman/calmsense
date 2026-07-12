@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Camera, Volume2, VolumeX, Sparkles, RefreshCw, AlertCircle, Heart } from "lucide-react";
 import * as Tone from "tone";
 
@@ -17,6 +18,8 @@ export default function PatientPage() {
   const [webcamActive, setWebcamActive] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
   const [isDemoMode, setIsDemoMode] = useState(true);
+  const [monitoringStarted, setMonitoringStarted] = useState(false);
+  const [hasPermissionError, setHasPermissionError] = useState(false);
 
   // References
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -228,6 +231,8 @@ export default function PatientPage() {
 
   // 4. Webcam and Audio Stream Lifecycle
   useEffect(() => {
+    if (!monitoringStarted) return;
+
     const enableWebcam = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -262,6 +267,8 @@ export default function PatientPage() {
         } catch (videoErr) {
           console.error("Webcam access denied completely:", videoErr);
           setWebcamActive(false);
+          setHasPermissionError(true);
+          setMonitoringStarted(false);
         }
       }
     };
@@ -273,7 +280,7 @@ export default function PatientPage() {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
-  }, []);
+  }, [monitoringStarted]);
 
   // 4b. Live Distress Analysis Loop (run every 4 seconds)
   useEffect(() => {
@@ -452,6 +459,51 @@ export default function PatientPage() {
     : distressLevel < 70 
       ? "Pacing / Mild Tension" 
       : "Distress Alert - Calming Active";
+
+  if (!monitoringStarted) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center bg-clay-soft px-6 py-12">
+        <div className="w-full max-w-md space-y-8 text-center bg-white p-8 rounded-3xl border border-sage-soft/30 shadow-sm">
+          <div className="flex flex-col items-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-sage-soft text-sage-dark animate-soft-pulse">
+              <Camera className="h-8 w-8" />
+            </div>
+            <h2 className="mt-6 text-3xl font-semibold tracking-tight text-slate-text">
+              Start Monitoring
+            </h2>
+            <p className="mt-2 text-sm text-slate-text/70">
+              CalmSense needs camera and microphone permissions to detect distress levels locally.
+            </p>
+          </div>
+
+          {hasPermissionError && (
+            <div className="flex items-center gap-2 rounded-xl bg-rose-alert/10 p-4 text-sm text-rose-alert border border-rose-alert/20 animate-fade-in text-left">
+              <AlertCircle className="h-5 w-5 shrink-0" />
+              <span>Camera and microphone access is required for CalmSpace monitoring. Please check your browser permissions and try again.</span>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <button
+              onClick={() => {
+                setHasPermissionError(false);
+                setMonitoringStarted(true);
+              }}
+              className="w-full py-3.5 px-4 rounded-2xl bg-sage-dark text-white font-medium hover:bg-sage-dark/90 active:scale-[0.98] transition-all duration-200"
+            >
+              {hasPermissionError ? "Try Again" : "Grant Access & Start"}
+            </button>
+            <Link
+              href="/"
+              className="block text-sm text-slate-text/50 hover:text-slate-text hover:underline transition-all duration-200"
+            >
+              Cancel and Return
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-clay-soft text-slate-text p-6 transition-colors duration-1000">
