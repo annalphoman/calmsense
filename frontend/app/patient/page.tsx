@@ -688,6 +688,25 @@ export default function PatientPage() {
           </div>
         )}
       </div>
+      
+      {/* Dev-only floating distress test trigger */}
+      <div className="fixed bottom-4 right-4 z-40">
+        <button
+          onClick={() => {
+            const nextLevel = distressLevel >= 70 ? 25 : 85;
+            setDistressLevel(nextLevel);
+            localStorage.setItem("calmsense_distress", nextLevel.toString());
+          }}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg border text-xs font-semibold uppercase tracking-wider transition-all duration-300 ${
+            distressLevel >= 70
+              ? "bg-sky-calm hover:bg-sky-calm/80 text-sky-dark border-sky-dark/20"
+              : "bg-rose-alert hover:bg-rose-alert/90 text-white border-rose-alert/20"
+          }`}
+        >
+          <Sparkles className="h-4 w-4" />
+          <span>{distressLevel >= 70 ? "Force Calm" : "Force Distress"}</span>
+        </button>
+      </div>
 
     </div>
   );
